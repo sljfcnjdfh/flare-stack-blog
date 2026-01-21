@@ -1,7 +1,9 @@
+import { z } from "zod";
 import type {
   DeletePostInput,
   FindPostByIdInput,
   FindPostBySlugInput,
+  FindRelatedPostsInput,
   GenerateSlugInput,
   GetPostsCountInput,
   GetPostsCursorInput,
@@ -76,6 +78,45 @@ export async function findPostBySlug(
   return await CacheService.get(context, cacheKey, PostWithTocSchema, fetcher, {
     ttl: "7d",
   });
+}
+
+export async function getRelatedPosts(
+  context: DbContext & { executionCtx: ExecutionContext },
+  data: FindRelatedPostsInput,
+) {
+  const fetcher = async () => {
+    const postIds = await PostRepo.getRelatedPostIds(context.db, data.slug, {
+      limit: data.limit,
+    });
+    return postIds;
+  };
+
+  // Cache IDs for 7 days (long-lived cache)
+  // This key is NOT dependent on version, so it persists across publishes
+  const cacheKey = POSTS_CACHE_KEYS.related(data.slug);
+  const cachedIds = await CacheService.get(
+    context,
+    cacheKey,
+    z.array(z.number()),
+    fetcher,
+    {
+      ttl: "7d",
+    },
+  );
+
+  if (cachedIds.length === 0) {
+    return [];
+  }
+
+  // Real-time hydration: fetch actual post data (automatically filters non-published)
+  const posts = await PostRepo.getPublicPostsByIds(context.db, cachedIds);
+
+  // Restore order because SQL 'IN' clause doesn't guarantee order
+  const orderedPosts = cachedIds
+    .map((id) => posts.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+
+  return orderedPosts;
 }
 
 export async function generateSummaryByPostId({

@@ -537,4 +537,118 @@ describe("PostService", () => {
       expect(post?.publishedAt).not.toBeNull();
     });
   });
+
+  describe("Related Posts", () => {
+    it("should return related posts ranked by tag match count", async () => {
+      const publicContext = createTestContext();
+
+      // 1. Create Tags
+      const tag1 = await TagService.createTag(adminContext, { name: "Tag1" });
+      const tag2 = await TagService.createTag(adminContext, { name: "Tag2" });
+      const tag3 = await TagService.createTag(adminContext, { name: "Tag3" });
+
+      // 2. Create Main Post (Tags: T1, T2)
+      const { id: mainId } = await PostService.createEmptyPost(adminContext);
+      await PostService.updatePost(adminContext, {
+        id: mainId,
+        data: {
+          title: "Main Post",
+          slug: "main-post",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      });
+      await TagService.setPostTags(adminContext, {
+        postId: mainId,
+        tagIds: [tag1.id, tag2.id],
+      });
+
+      // 3. Create High Relevance Post (Tags: T1, T2) -> 2 matches
+      const { id: highId } = await PostService.createEmptyPost(adminContext);
+      await PostService.updatePost(adminContext, {
+        id: highId,
+        data: {
+          title: "High Relevance",
+          slug: "high-rel",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      });
+      await TagService.setPostTags(adminContext, {
+        postId: highId,
+        tagIds: [tag1.id, tag2.id],
+      });
+
+      // 4. Create Low Relevance Post (Tags: T1) -> 1 match
+      const { id: lowId } = await PostService.createEmptyPost(adminContext);
+      await PostService.updatePost(adminContext, {
+        id: lowId,
+        data: {
+          title: "Low Relevance",
+          slug: "low-rel",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      });
+      await TagService.setPostTags(adminContext, {
+        postId: lowId,
+        tagIds: [tag1.id],
+      });
+
+      // 5. Create Unrelated Post (Tags: T3) -> 0 matches
+      const { id: unrelatedId } =
+        await PostService.createEmptyPost(adminContext);
+      await PostService.updatePost(adminContext, {
+        id: unrelatedId,
+        data: {
+          title: "Unrelated",
+          slug: "unrelated",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      });
+      await TagService.setPostTags(adminContext, {
+        postId: unrelatedId,
+        tagIds: [tag3.id],
+      });
+
+      // 6. Create Draft Post (Tags: T1, T2) -> High match but draft
+      const { id: draftId } = await PostService.createEmptyPost(adminContext);
+      await PostService.updatePost(adminContext, {
+        id: draftId,
+        data: {
+          title: "Draft High Rel",
+          slug: "draft-rel",
+          status: "draft", // Should be ignored
+        },
+      });
+      await TagService.setPostTags(adminContext, {
+        postId: draftId,
+        tagIds: [tag1.id, tag2.id],
+      });
+
+      // Act: Get Related Posts
+      const related = await PostService.getRelatedPosts(publicContext, {
+        slug: "main-post",
+        limit: 10,
+      });
+
+      // Assert
+      expect(related).toHaveLength(2);
+
+      // Rank 1: High Relevance (2 matches)
+      expect(related[0].title).toBe("High Relevance");
+      expect(related[0].id).toBe(highId);
+
+      // Rank 2: Low Relevance (1 match)
+      expect(related[1].title).toBe("Low Relevance");
+      expect(related[1].id).toBe(lowId);
+
+      // Verify Exclusions
+      const ids = related.map((p) => p.id);
+      expect(ids).not.toContain(unrelatedId);
+      expect(ids).not.toContain(draftId);
+      expect(ids).not.toContain(mainId); // Should not contain itself
+    });
+  });
 });

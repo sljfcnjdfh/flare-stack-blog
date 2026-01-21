@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   FindPostBySlugInputSchema,
+  FindRelatedPostsInputSchema,
   GetPostsCursorInputSchema,
 } from "@/features/posts/posts.schema";
 import * as PostService from "@/features/posts/posts.service";
@@ -35,4 +36,18 @@ export const findPostBySlugFn = createServerFn()
   .inputValidator(FindPostBySlugInputSchema)
   .handler(async ({ data, context }) => {
     return await PostService.findPostBySlug(context, data);
+  });
+
+export const getRelatedPostsFn = createServerFn()
+  .middleware([
+    createRateLimitMiddleware({
+      capacity: 120, // Higher limit for related posts as it's auto-fetched
+      interval: "1m",
+      key: "posts:getRelated",
+    }),
+    createCacheHeaderMiddleware("swr"),
+  ])
+  .inputValidator(FindRelatedPostsInputSchema)
+  .handler(async ({ data, context }) => {
+    return await PostService.getRelatedPosts(context, data);
   });

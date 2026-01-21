@@ -1,4 +1,15 @@
-import { and, count, desc, eq, inArray, like, lt, ne, or } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  like,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { SortDirection, SortField } from "@/features/posts/data/helper";
 import type { PostStatus, Tag } from "@/lib/db/schema";
 import type { PostListItem } from "@/features/posts/posts.schema";
@@ -295,4 +306,72 @@ export async function findSimilarSlugs(
     .where(and(...conditions));
 
   return results.map((r) => r.slug);
+}
+
+export async function getRelatedPostIds(
+  db: DB,
+  slug: string,
+  options: { limit?: number } = {},
+) {
+  const { limit = 3 } = options;
+
+  // 1. Get current post ID and its tags
+  const currentPost = await db.query.PostsTable.findFirst({
+    where: eq(PostsTable.slug, slug),
+    with: {
+      postTags: true,
+    },
+    columns: { id: true },
+  });
+
+  if (!currentPost || currentPost.postTags.length === 0) {
+    return [];
+  }
+
+  const tagIds = currentPost.postTags.map((pt) => pt.tagId);
+
+  // 2. Find posts that share at least one tag
+  // Return only IDs, ordered by match count
+  const matchingPosts = await db
+    .select({
+      id: PostsTable.id,
+      matchCount: sql<number>`count(${PostTagsTable.tagId})`.as("match_count"),
+    })
+    .from(PostsTable)
+    .innerJoin(PostTagsTable, eq(PostsTable.id, PostTagsTable.postId))
+    .where(
+      and(
+        ne(PostsTable.id, currentPost.id),
+        eq(PostsTable.status, "published"),
+        inArray(PostTagsTable.tagId, tagIds),
+      ),
+    )
+    .groupBy(PostsTable.id)
+    .orderBy(desc(sql`match_count`), desc(PostsTable.publishedAt))
+    .limit(limit);
+
+  return matchingPosts.map((p) => p.id);
+}
+
+export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
+  if (ids.length === 0) return [];
+
+  const whereClause = buildPostWhereClause({ publicOnly: true });
+
+  const posts = await db
+    .select({
+      id: PostsTable.id,
+      title: PostsTable.title,
+      summary: PostsTable.summary,
+      readTimeInMinutes: PostsTable.readTimeInMinutes,
+      slug: PostsTable.slug,
+      status: PostsTable.status,
+      publishedAt: PostsTable.publishedAt,
+      createdAt: PostsTable.createdAt,
+      updatedAt: PostsTable.updatedAt,
+    })
+    .from(PostsTable)
+    .where(and(inArray(PostsTable.id, ids), whereClause));
+
+  return posts;
 }

@@ -50,8 +50,14 @@ export const FindPostBySlugInputSchema = z.object({
   slug: z.string(),
 });
 
+export const FindRelatedPostsInputSchema = z.object({
+  slug: z.string(),
+  limit: z.number().optional(),
+});
+
 export type GetPostsCursorInput = z.infer<typeof GetPostsCursorInputSchema>;
 export type FindPostBySlugInput = z.infer<typeof FindPostBySlugInputSchema>;
+export type FindRelatedPostsInput = z.infer<typeof FindRelatedPostsInputSchema>;
 
 // Admin API Schemas
 export const GenerateSlugInputSchema = z.object({
@@ -109,5 +115,6 @@ export const POSTS_CACHE_KEYS = {
   list: (version: string, limit: number, cursor: number, tagName: string) =>
     ["posts", "list", version, limit, cursor, tagName] as const,
   detail: (version: string, slug: string) => [version, "post", slug] as const,
+  related: (slug: string) => ["posts", "related-ids", slug] as const,
   syncHash: (id: number) => `post_hash:${id}` as const,
 } as const;

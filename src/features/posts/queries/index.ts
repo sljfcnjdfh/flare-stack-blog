@@ -1,6 +1,10 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { findPostByIdFn } from "../api/posts.admin.api";
-import { findPostBySlugFn, getPostsCursorFn } from "../api/posts.public.api";
+import {
+  findPostBySlugFn,
+  getPostsCursorFn,
+  getRelatedPostsFn,
+} from "../api/posts.public.api";
 import type {
   GetPostsCountInput,
   GetPostsInput,
@@ -19,6 +23,7 @@ export const POSTS_KEYS = {
   // Child keys (functions for specific queries)
   list: (filters?: { tagName?: string }) => ["posts", "list", filters] as const,
   detail: (idOrSlug: number | string) => ["posts", "detail", idOrSlug] as const,
+  related: (slug: string) => ["posts", "related", slug] as const,
   adminList: (params: GetPostsInput) =>
     ["posts", "admin-list", params] as const,
   count: (params: GetPostsCountInput) => ["posts", "count", params] as const,
@@ -61,5 +66,12 @@ export function postByIdQuery(id: number) {
   return queryOptions({
     queryKey: POSTS_KEYS.detail(id),
     queryFn: () => findPostByIdFn({ data: { id } }),
+  });
+}
+
+export function relatedPostsQuery(slug: string) {
+  return queryOptions({
+    queryKey: POSTS_KEYS.related(slug),
+    queryFn: () => getRelatedPostsFn({ data: { slug } }),
   });
 }

@@ -7,14 +7,18 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { ArrowLeft, ArrowUp, Share2, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { postBySlugQuery } from "@/features/posts/queries";
+import { postBySlugQuery, relatedPostsQuery } from "@/features/posts/queries";
 import { ContentRenderer } from "@/features/posts/components/view/content-renderer";
 import TableOfContents from "@/features/posts/components/view/table-of-content";
 import { CommentSection } from "@/features/comments/components/view/comment-section";
 import { ArticleSkeleton } from "@/features/posts/components/view/article-skeleton";
+import {
+  RelatedPosts,
+  RelatedPostsSkeleton,
+} from "@/features/posts/components/view/related-posts";
 
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
@@ -28,9 +32,16 @@ export const Route = createFileRoute("/_public/post/$slug")({
   validateSearch: searchSchema,
   component: RouteComponent,
   loader: async ({ context, params }) => {
-    const post = await context.queryClient.ensureQueryData(
+    // 1. Critical: Main post data
+    const postPromise = context.queryClient.ensureQueryData(
       postBySlugQuery(params.slug),
     );
+
+    // 2. Deferred: Related posts (prefetch only, don't await)
+    void context.queryClient.prefetchQuery(relatedPostsQuery(params.slug));
+
+    const post = await postPromise;
+
     if (!post) {
       throw notFound();
     }
@@ -160,7 +171,6 @@ function RouteComponent() {
 
             <footer className="mt-24 pt-8 border-t border-border/20 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground/60 tracking-widest uppercase">
-                <span className="opacity-50">///</span>
                 <span>End of Article</span>
               </div>
               <Button
@@ -186,8 +196,15 @@ function RouteComponent() {
           </main>
         </div>
 
+        {/* Related Posts */}
+        <div className="pt-24 border-t border-border/40">
+          <Suspense fallback={<RelatedPostsSkeleton />}>
+            <RelatedPosts slug={post.slug} />
+          </Suspense>
+        </div>
+
         {/* Comments Section */}
-        <div className="pt-12 border-t border-border/40">
+        <div className="pt-12 border-t-0 border-border/40">
           <CommentSection postId={post.id} />
         </div>
       </article>
