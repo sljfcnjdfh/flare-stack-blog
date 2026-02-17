@@ -21,13 +21,8 @@ async function checkEmailRateLimit(
   return result.allowed;
 }
 
-let auth: Auth | null = null;
-
 export function getAuth({ db, env }: { db: DB; env: Env }) {
-  if (auth) return auth;
-
-  auth = createAuth({ db, env });
-  return auth;
+  return createAuth({ db, env });
 }
 
 function createAuth({ db, env }: { db: DB; env: Env }) {
