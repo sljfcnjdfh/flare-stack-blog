@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "my-blog",
+  "name": "my-blog1",
   "compatibility_date": "2026-02-17",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
@@ -17,14 +17,14 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_id": "D1_DATABASE_ID",
+      "database_id": "9d3b05a0-25a5-45ab-ac3d-9f51ddfdb714",
       "migrations_dir": "migrations",
       "remote": true,
     },
   ],
   "r2_buckets": [
     {
-      "bucket_name": "bucket-name-placeholder",
+      "bucket_name": "tylblog",
       "binding": "R2",
       "remote": true,
     },
@@ -32,7 +32,7 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "KV_NAMESPACE_ID",
+      "id": "dadbfcc0a713491385489dd86edf8c3a",
       "remote": true,
     },
   ],
