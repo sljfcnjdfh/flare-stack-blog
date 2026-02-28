@@ -32,6 +32,13 @@ const config = defineConfig(({ mode }) => {
         ),
       },
     },
+    // 新增 build 配置，解决 cloudflare:workers 解析问题
+    build: {
+      rollupOptions: {
+        // 将 cloudflare:workers 标记为外部模块，避免 Rollup 解析
+        external: ["cloudflare:workers"],
+      },
+    },
     plugins: [
       cloudflare({
         viteEnvironment: {
@@ -48,4 +55,5 @@ const config = defineConfig(({ mode }) => {
     ],
   };
 });
+
 export default config;
