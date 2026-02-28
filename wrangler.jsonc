@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "my-blog1",
+  "name": "flare-stack-blog",
   "compatibility_date": "2026-02-17",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
@@ -10,7 +10,7 @@
   "keep_vars": true,
   "routes": [
     {
-      "pattern": "DOMAIN_PLACEHOLDER",
+      "pattern": "taiyanglee.eu.org",
       "custom_domain": true,
     },
   ],
