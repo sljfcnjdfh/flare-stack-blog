@@ -97,7 +97,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
           href: "/feed.json",
         },
       ],
-      // 移除原有无条件加载的 Umami 脚本，改为在 body 中通过 Cookie 授权管控
       scripts: [],
     };
   },
@@ -110,7 +109,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const env = clientEnv();
   const umamiWebsiteId = env.VITE_UMAMI_WEBSITE_ID;
 
-  // Cookie 授权配置（适配繁体中文，深色主题，李帅博客）
+  // Cookie 授权配置（完整配置，包含隐私政策链接）
   const cookieConsentConfig = {
     notice_banner_type: "simple",
     consent_type: "express",
@@ -121,6 +120,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     preferences_center_close_button_hide: false,
     page_refresh_confirmation_buttons: false,
     website_name: "李帅博客",
+    website_privacy_policy_url: "https://taiyanglee.eu.org/post/privacy-policy", // 补全隐私政策链接
   };
 
   return (
@@ -133,8 +133,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {/* ========== Cookie 授权核心代码（按 TermsFeed 要求放在 body 开头） ========== */}
-        {/* 加载 TermsFeed Cookie Consent 核心脚本 */}
+        {/* ========== Cookie 授权核心代码 ========== */}
+        {/* TermsFeed Cookie Consent 核心脚本 */}
         <script
           type="text/javascript"
           src="//www.termsfeed.com/public/cookie-consent/4.2.0/cookie-consent.js"
@@ -154,7 +154,8 @@ document.addEventListener('DOMContentLoaded', function () {
           }}
         />
 
-        {/* 合规版 Umami 脚本（仅用户授权 tracking 类 Cookie 后加载） */}
+        {/* ========== 合规加载第三方脚本（需用户授权） ========== */}
+        {/* 1. Umami 统计脚本（tracking 类 Cookie 授权后加载） */}
         {umamiWebsiteId && (
           <script
             type="text/plain"
@@ -165,7 +166,14 @@ document.addEventListener('DOMContentLoaded', function () {
           />
         )}
 
-        {/* noscript 降级提示 */}
+        {/* 2. 老榕树广告联盟脚本（targeting 类 Cookie 授权后加载） */}
+        <script
+          type="text/plain"
+          data-cookie-consent="targeting"
+          src="http://wm.lrswl.com/page/s.php?s=324687&w=950&h=90"
+        />
+
+        {/* ========== noscript 降级提示 ========== */}
         <noscript>
           Free cookie consent management tool by{" "}
           <a href="https://www.termsfeed.com/">TermsFeed Generator</a>
@@ -174,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
         {/* ========== 原有页面内容 ========== */}
         <ThemeProvider>{children}</ThemeProvider>
         
-        {/* Cookie 偏好设置入口（可放在任意位置，这里放在 devtools 前） */}
+        {/* ========== Cookie 偏好设置入口 ========== */}
         <a
           href="#"
           id="open_preferences_center"
@@ -189,10 +197,13 @@ document.addEventListener('DOMContentLoaded', function () {
             padding: "4px 8px",
             borderRadius: "4px",
             zIndex: 9999,
+            border: "1px solid #eee",
           }}
         >
+          更新Cookie偏好设置
         </a>
 
+        {/* ========== 开发工具 ========== */}
         <TanStackDevtools
           config={{
             position: "bottom-right",
