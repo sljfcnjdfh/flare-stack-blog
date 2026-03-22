@@ -40,6 +40,25 @@ export function Footer({ navOptions }: FooterProps) {
               {option.label}
             </Link>
           ))}
+          {/* 新增：隐私政策链接 */}
+          <a
+            href="https://taiyanglee.eu.org/post/privacy-policy"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            隐私政策
+          </a>
+          {/* 新增：Cookie政策链接 */}
+          <a
+            href="https://taiyanglee.eu.org/post/cookie-policy"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Cookie政策
+          </a>
+          {/* 原有社交链接逻辑（完全保留） */}
           {siteConfig.social
             .filter((link) => link.url)
             .map((link, i) => {
