@@ -97,15 +97,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
           href: "/feed.json",
         },
       ],
-      scripts: env.VITE_UMAMI_WEBSITE_ID
-        ? [
-            {
-              src: "/stats.js",
-              defer: true,
-              "data-website-id": env.VITE_UMAMI_WEBSITE_ID,
-            },
-          ]
-        : [],
+      // 移除原有无条件加载的 Umami 脚本，改为在 body 中通过 Cookie 授权管控
+      scripts: [],
     };
   },
   shellComponent: RootDocument,
@@ -114,6 +107,21 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 function RootDocument({ children }: { children: React.ReactNode }) {
   const locale = getLocale();
   const { siteConfig } = useRouteContext({ from: "__root__" });
+  const env = clientEnv();
+  const umamiWebsiteId = env.VITE_UMAMI_WEBSITE_ID;
+
+  // Cookie 授权配置（适配繁体中文，深色主题，李帅博客）
+  const cookieConsentConfig = {
+    notice_banner_type: "simple",
+    consent_type: "express",
+    palette: "dark",
+    language: "zh_tw",
+    page_load_consent_levels: ["strictly-necessary"],
+    notice_banner_reject_button_hide: false,
+    preferences_center_close_button_hide: false,
+    page_refresh_confirmation_buttons: false,
+    website_name: "李帅博客",
+  };
 
   return (
     <html
@@ -125,7 +133,66 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        {/* ========== Cookie 授权核心代码（按 TermsFeed 要求放在 body 开头） ========== */}
+        {/* 加载 TermsFeed Cookie Consent 核心脚本 */}
+        <script
+          type="text/javascript"
+          src="//www.termsfeed.com/public/cookie-consent/4.2.0/cookie-consent.js"
+          charSet="UTF-8"
+        />
+        
+        {/* 初始化 Cookie 授权配置 */}
+        <script
+          type="text/javascript"
+          charSet="UTF-8"
+          dangerouslySetInnerHTML={{
+            __html: `
+document.addEventListener('DOMContentLoaded', function () {
+  cookieconsent.run(${JSON.stringify(cookieConsentConfig)});
+});
+            `,
+          }}
+        />
+
+        {/* 合规版 Umami 脚本（仅用户授权 tracking 类 Cookie 后加载） */}
+        {umamiWebsiteId && (
+          <script
+            type="text/plain"
+            data-cookie-consent="tracking"
+            src="/stats.js"
+            defer
+            data-website-id={umamiWebsiteId}
+          />
+        )}
+
+        {/* noscript 降级提示 */}
+        <noscript>
+          Free cookie consent management tool by{" "}
+          <a href="https://www.termsfeed.com/">TermsFeed Generator</a>
+        </noscript>
+
+        {/* ========== 原有页面内容 ========== */}
         <ThemeProvider>{children}</ThemeProvider>
+        
+        {/* Cookie 偏好设置入口（可放在任意位置，这里放在 devtools 前） */}
+        <a
+          href="#"
+          id="open_preferences_center"
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            fontSize: "12px",
+            color: "#666",
+            textDecoration: "none",
+            background: "#f5f5f5",
+            padding: "4px 8px",
+            borderRadius: "4px",
+            zIndex: 9999,
+          }}
+        >
+        </a>
+
         <TanStackDevtools
           config={{
             position: "bottom-right",
