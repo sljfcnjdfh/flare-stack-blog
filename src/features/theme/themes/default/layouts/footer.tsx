@@ -1,8 +1,4 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import {
-  resolveSocialHref,
-  SOCIAL_PLATFORMS,
-} from "@/features/config/utils/social-platforms";
 import type { NavOption } from "@/features/theme/contract/layouts";
 import { m } from "@/paraglide/messages";
 
@@ -31,6 +27,7 @@ export function Footer({ navOptions }: FooterProps) {
 
         {/* Minimalist Links */}
         <nav className="flex items-center gap-8 text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60">
+          {/* ✅ 主页、文章、友链 全部保留！*/}
           {navOptions.map((option) => (
             <Link
               key={option.id}
@@ -40,7 +37,8 @@ export function Footer({ navOptions }: FooterProps) {
               {option.label}
             </Link>
           ))}
-          {/* 新增：隐私政策链接 */}
+
+          {/* 隐私政策 */}
           <a
             href="https://taiyanglee.eu.org/post/privacy-policy"
             target="_blank"
@@ -49,7 +47,7 @@ export function Footer({ navOptions }: FooterProps) {
           >
             隐私政策
           </a>
-          {/* 新增：Cookie政策链接 */}
+          {/* Cookie政策 */}
           <a
             href="https://taiyanglee.eu.org/post/cookie-policy"
             target="_blank"
@@ -58,27 +56,24 @@ export function Footer({ navOptions }: FooterProps) {
           >
             Cookie政策
           </a>
-          {/* 原有社交链接逻辑（完全保留） */}
-          {siteConfig.social
-            .filter((link) => link.url)
-            .map((link, i) => {
-              const href = resolveSocialHref(link.platform, link.url);
-              const label =
-                link.platform !== "custom"
-                  ? SOCIAL_PLATFORMS[link.platform].label
-                  : (link.label ?? "");
-              return (
-                <a
-                  key={`${link.platform}-${i}`}
-                  href={href}
-                  target={link.platform === "email" ? undefined : "_blank"}
-                  rel={link.platform === "email" ? undefined : "noreferrer"}
-                  className="hover:text-foreground transition-colors"
-                >
-                  {label}
-                </a>
-              );
-            })}
+          {/* RSS 订阅 */}
+          <a
+            href="https://taiyanglee.eu.org/rss.xml"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            RSS
+          </a>
+          {/* 网站地图 */}
+          <a
+            href="https://taiyanglee.eu.org/sitemap.xml"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Sitemap
+          </a>
         </nav>
       </div>
     </footer>
