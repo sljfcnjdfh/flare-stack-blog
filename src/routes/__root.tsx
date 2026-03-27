@@ -14,6 +14,7 @@ import TanStackQueryDevtools from "@/integrations/tanstack-query/devtools";
 import { clientEnv } from "@/lib/env/client.env";
 import { getLocale } from "@/paraglide/runtime";
 import appCss from "@/styles.css?url";
+import { useEffect, useState } from "react";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -103,13 +104,71 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   shellComponent: RootDocument,
 });
 
+// RSS 文章类型
+interface RssItem {
+  title: string;
+  link: string;
+  pubDate: string;
+  date: Date;
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   const locale = getLocale();
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const env = clientEnv();
   const umamiWebsiteId = env.VITE_UMAMI_WEBSITE_ID;
 
-  // Cookie 授权配置（完整配置，包含隐私政策链接）
+  // ==============================================
+  // 🔥 新文章检测功能（只在这里加，完全不动 Footer）
+  // ==============================================
+  const [newArticles, setNewArticles] = useState<RssItem[]>([]);
+  const [lastVisit, setLastVisit] = useState<Date | null>(null);
+  const [showNewArticles, setShowNewArticles] = useState(false);
+
+  useEffect(() => {
+    const now = new Date();
+    const lastVisitStr = localStorage.getItem("last_visit_time");
+    if (lastVisitStr) {
+      const lastTime = new Date(lastVisitStr);
+      setLastVisit(lastTime);
+      fetchAndCheckNewArticles(lastTime);
+    }
+    localStorage.setItem("last_visit_time", now.toISOString());
+  }, []);
+
+  const fetchAndCheckNewArticles = async (lastTime: Date) => {
+    try {
+      const res = await fetch("https://taiyanglee.eu.org/rss.xml");
+      const text = await res.text();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, "application/xml");
+      const items = xml.querySelectorAll("item");
+      const newItems: RssItem[] = [];
+
+      items.forEach((item) => {
+        const title = item.querySelector("title")?.textContent || "";
+        const link = item.querySelector("link")?.textContent || "";
+        const pubDate = item.querySelector("pubDate")?.textContent || "";
+        const date = new Date(pubDate);
+        if (date > lastTime) newItems.push({ title, link, pubDate, date });
+      });
+
+      if (newItems.length > 0) {
+        setNewArticles(newItems);
+        setShowNewArticles(true);
+      }
+    } catch (e) {
+      console.log("RSS 加载失败");
+    }
+  };
+
+  const formatTime = (d: Date) =>
+    d.toLocaleString("zh-CN", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    });
+
+  // Cookie 授权配置
   const cookieConsentConfig = {
     notice_banner_type: "simple",
     consent_type: "express",
@@ -120,7 +179,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     preferences_center_close_button_hide: false,
     page_refresh_confirmation_buttons: false,
     website_name: "李帅博客",
-    website_privacy_policy_url: "https://taiyanglee.eu.org/post/privacy-policy", // 补全隐私政策链接
+    website_privacy_policy_url: "https://taiyanglee.eu.org/post/privacy-policy",
   };
 
   return (
@@ -133,15 +192,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {/* ========== Cookie 授权核心代码 ========== */}
-        {/* TermsFeed Cookie Consent 核心脚本 */}
         <script
           type="text/javascript"
           src="//www.termsfeed.com/public/cookie-consent/4.2.0/cookie-consent.js"
           charSet="UTF-8"
         />
-        
-        {/* 初始化 Cookie 授权配置 */}
         <script
           type="text/javascript"
           charSet="UTF-8"
@@ -154,8 +209,6 @@ document.addEventListener('DOMContentLoaded', function () {
           }}
         />
 
-        {/* ========== 合规加载第三方脚本（需用户授权） ========== */}
-        {/* 1. Umami 统计脚本（tracking 类 Cookie 授权后加载） */}
         {umamiWebsiteId && (
           <script
             type="text/plain"
@@ -166,23 +219,86 @@ document.addEventListener('DOMContentLoaded', function () {
           />
         )}
 
-        {/* 2. 老榕树广告联盟脚本（targeting 类 Cookie 授权后加载） */}
         <script
           type="text/plain"
           data-cookie-consent="targeting"
           src="http://wm.lrswl.com/page/s.php?s=324687&w=950&h=90"
         />
 
-        {/* ========== noscript 降级提示 ========== */}
         <noscript>
           Free cookie consent management tool by{" "}
           <a href="https://www.termsfeed.com/">TermsFeed Generator</a>
         </noscript>
 
-        {/* ========== 原有页面内容 ========== */}
         <ThemeProvider>{children}</ThemeProvider>
+
+        {/* ==============================================
+         🔥 新文章提示条（显示在页面底部，不影响布局）
+        =============================================== */}
+        {showNewArticles && lastVisit && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "70px",
+              right: "20px",
+              background: "var(--background)",
+              border: "1px solid var(--border)",
+              borderRadius: "14px",
+              padding: "14px 16px",
+              fontSize: "13px",
+              boxShadow: "0 10px 30px -8px rgba(0,0,0,0.08)",
+              zIndex: 999,
+              width: "280px",
+              backdropFilter: "blur(8px)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 600,
+                color: "var(--primary)",
+                marginBottom: "10px",
+                fontSize: "14px",
+              }}
+            >
+              自 {formatTime(lastVisit)} 后新增文章
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              {newArticles.map((item, i) => (
+                <a
+                  key={i}
+                  href={item.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    color: "var(--foreground)",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    padding: "4px 2px",
+                    transition: "color 0.2s",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.color = "var(--primary)")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.color = "var(--foreground)")
+                  }
+                >
+                  • {item.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         
-        {/* ========== Cookie 偏好设置入口 ========== */}
         <a
           href="#"
           id="open_preferences_center"
@@ -203,7 +319,6 @@ document.addEventListener('DOMContentLoaded', function () {
           更新Cookie偏好设置
         </a>
 
-        {/* ========== 开发工具 ========== */}
         <TanStackDevtools
           config={{
             position: "bottom-right",
