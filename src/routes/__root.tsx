@@ -123,7 +123,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   // ==============================================
   const [newArticles, setNewArticles] = useState<RssItem[]>([]);
   const [lastVisit, setLastVisit] = useState<Date | null>(null);
-  const [showNewArticles, setShowNewArticles] = useState(false);
+  const [showNewArticles, setShowNewArticles] = useState(true);
 
   useEffect(() => {
     const now = new Date();
@@ -136,6 +136,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     localStorage.setItem("last_visit_time", now.toISOString());
   }, []);
 
+  // ==============================================
+  // 🔥 🔥 🔥 最新、最稳、最兼容 RSS 代码
+  // ==============================================
   const fetchAndCheckNewArticles = async (lastTime: Date) => {
     try {
       const res = await fetch("https://taiyanglee.eu.org/rss.xml");
@@ -148,15 +151,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       items.forEach((item) => {
         const title = item.querySelector("title")?.textContent || "";
         const link = item.querySelector("link")?.textContent || "";
-        const pubDate = item.querySelector("pubDate")?.textContent || "";
+        const pubDate =
+          item.querySelector("pubDate")?.textContent ||
+          item.querySelector("dc:date")?.textContent ||
+          item.querySelector("updated")?.textContent || "";
+
         const date = new Date(pubDate);
-        if (date > lastTime) newItems.push({ title, link, pubDate, date });
+
+        // ✅ 最新版：增加时间有效性判断
+        if (!isNaN(date.getTime()) && date > lastTime) {
+          newItems.push({ title, link, pubDate, date });
+        }
       });
 
-      if (newItems.length > 0) {
-        setNewArticles(newItems);
-        setShowNewArticles(true);
-      }
+      setNewArticles(newItems);
     } catch (e) {
       console.log("RSS 加载失败");
     }
@@ -239,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div
             style={{
               position: "fixed",
-              bottom: "70px",
+              bottom: "80px",
               right: "20px",
               background: "var(--background)",
               border: "1px solid var(--border)",
@@ -253,48 +261,69 @@ document.addEventListener('DOMContentLoaded', function () {
               transition: "all 0.2s ease",
             }}
           >
-            <div
-              style={{
-                fontWeight: 600,
-                color: "var(--primary)",
-                marginBottom: "10px",
-                fontSize: "14px",
-              }}
-            >
-              自 {formatTime(lastVisit)} 后新增文章
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: "var(--primary)",
+                  fontSize: "14px",
+                }}
+              >
+                自 {formatTime(lastVisit)} 后新增文章
+              </div>
+              <button
+                onClick={() => setShowNewArticles(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted-foreground)",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  padding: "0 4px"
+                }}
+              >
+                ×
+              </button>
             </div>
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
+                maxHeight: "160px",
+                overflowY: "auto",
+                paddingRight: "4px"
               }}
             >
-              {newArticles.map((item, i) => (
-                <a
-                  key={i}
-                  href={item.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    color: "var(--foreground)",
-                    textDecoration: "none",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    padding: "4px 2px",
-                    transition: "color 0.2s",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.color = "var(--primary)")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.color = "var(--foreground)")
-                  }
-                >
-                  • {item.title}
-                </a>
-              ))}
+              {newArticles.length > 0 ? (
+                newArticles.map((item, i) => (
+                  <a
+                    key={i}
+                    href={item.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "var(--foreground)",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      padding: "4px 2px",
+                      transition: "color 0.2s",
+                    }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.color = "var(--primary)")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.color = "var(--foreground)")
+                    }
+                  >
+                    • {item.title}
+                  </a>
+                ))
+              ) : (
+                <div style={{ color: "var(--muted-foreground)" }}>暂无最新文章</div>
+              )}
             </div>
           </div>
         )}
