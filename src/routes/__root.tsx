@@ -12,7 +12,6 @@ import { ThemeProvider } from "@/components/common/theme-provider";
 import { siteConfigQuery } from "@/features/config/queries";
 import TanStackQueryDevtools from "@/integrations/tanstack-query/devtools";
 import { clientEnv } from "@/lib/env/client.env";
-import { getLocale } from "@/paradigm/runtime";
 import appCss from "@/styles.css?url";
 import { useEffect, useState, useMemo } from "react";
 
@@ -118,7 +117,6 @@ interface ArticleCacheItem {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const locale = getLocale();
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const env = clientEnv();
   const umamiWebsiteId = env.VITE_UMAMI_WEBSITE_ID;
@@ -241,7 +239,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   return (
     <html
-      lang={locale}
+      lang="zh"
       suppressHydrationWarning
       style={theme.getDocumentStyle?.(siteConfig)}
     >
