@@ -165,10 +165,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       items.forEach((item) => {
         const title = item.querySelector("title")?.textContent || "无标题";
         const link = item.querySelector("link")?.textContent || "#";
-        const content =
-          item.querySelector("content\\:encoded")?.textContent ||
-          item.querySelector("description")?.textContent ||
-          "";
+        
+        // ✅ 只读取 content:encoded，彻底不使用 description
+        const content = item.querySelector("encoded")?.textContent || "";
 
         const fingerprint = getFingerprint(content);
         newCache.push({ link, title, fingerprint });
