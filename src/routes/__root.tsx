@@ -12,9 +12,9 @@ import { ThemeProvider } from "@/components/common/theme-provider";
 import { siteConfigQuery } from "@/features/config/queries";
 import TanStackQueryDevtools from "@/integrations/tanstack-query/devtools";
 import { clientEnv } from "@/lib/env/client.env";
-import { getLocale } from "@/paraglide/runtime";
+import { getLocale } from "@/paradigm/runtime";
 import appCss from "@/styles.css?url";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -104,12 +104,17 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   shellComponent: RootDocument,
 });
 
-// RSS 文章类型
-interface RssItem {
+interface ArticleChange {
   title: string;
   link: string;
-  pubDate: string;
-  date: Date;
+  isNew: boolean;
+  isModified: boolean;
+}
+
+interface ArticleCacheItem {
+  link: string;
+  title: string;
+  fingerprint: string;
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
@@ -118,65 +123,109 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const env = clientEnv();
   const umamiWebsiteId = env.VITE_UMAMI_WEBSITE_ID;
 
-  // ==============================================
-  // 🔥 新文章检测功能（只在这里加，完全不动 Footer）
-  // ==============================================
-  const [newArticles, setNewArticles] = useState<RssItem[]>([]);
-  const [lastVisit, setLastVisit] = useState<Date | null>(null);
-  const [showNewArticles, setShowNewArticles] = useState(true);
+  const [changes, setChanges] = useState<ArticleChange[]>([]);
+  const [showPopup, setShowPopup] = useState(true);
+  const [firstVisit, setFirstVisit] = useState(true);
 
-  useEffect(() => {
-    const now = new Date();
-    const lastVisitStr = localStorage.getItem("last_visit_time");
-    if (lastVisitStr) {
-      const lastTime = new Date(lastVisitStr);
-      setLastVisit(lastTime);
-      fetchAndCheckNewArticles(lastTime);
+  const CACHE_KEY = "blog_articles_v5";
+
+  const cleanContent = (html: string) => {
+    return html.replace(/\s+/g, " ").replace(/>\s+</g, "><").trim();
+  };
+
+  const getFingerprint = (html: string) => {
+    return btoa(encodeURIComponent(cleanContent(html)));
+  };
+
+  const localCache = useMemo<ArticleCacheItem[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]");
+    } catch {
+      return [];
     }
-    localStorage.setItem("last_visit_time", now.toISOString());
   }, []);
 
-  // ==============================================
-  // 🔥 🔥 🔥 最新、最稳、最兼容 RSS 代码
-  // ==============================================
-  const fetchAndCheckNewArticles = async (lastTime: Date) => {
+  const clearAllUpdates = () => {
+    setChanges([]);
+    setShowPopup(false);
+    localStorage.removeItem(CACHE_KEY);
+  };
+
+  const fetchAndDetectChanges = async () => {
     try {
-      const res = await fetch("https://taiyanglee.eu.org/rss.xml");
+      const res = await fetch("https://taiyanglee.eu.org/rss.xml", {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return;
       const text = await res.text();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(text, "application/xml");
+      const xml = new DOMParser().parseFromString(text, "application/xml");
       const items = xml.querySelectorAll("item");
-      const newItems: RssItem[] = [];
+
+      const newCache: ArticleCacheItem[] = [];
+      const newChanges: ArticleChange[] = [];
 
       items.forEach((item) => {
-        const title = item.querySelector("title")?.textContent || "";
-        const link = item.querySelector("link")?.textContent || "";
-        const pubDate =
-          item.querySelector("pubDate")?.textContent ||
-          item.querySelector("dc:date")?.textContent ||
-          item.querySelector("updated")?.textContent || "";
+        const title = item.querySelector("title")?.textContent || "无标题";
+        const link = item.querySelector("link")?.textContent || "#";
+        const content =
+          item.querySelector("content\\:encoded")?.textContent ||
+          item.querySelector("description")?.textContent ||
+          "";
 
-        const date = new Date(pubDate);
+        const fingerprint = getFingerprint(content);
+        newCache.push({ link, title, fingerprint });
 
-        // ✅ 最新版：增加时间有效性判断
-        if (!isNaN(date.getTime()) && date > lastTime) {
-          newItems.push({ title, link, pubDate, date });
+        const found = localCache.find((x) => x.link === link);
+        if (!found) {
+          newChanges.push({ title, link, isNew: true, isModified: false });
+        } else if (found.fingerprint !== fingerprint) {
+          newChanges.push({ title, link, isNew: false, isModified: true });
         }
       });
 
-      setNewArticles(newItems);
-    } catch (e) {
-      console.log("RSS 加载失败");
-    }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
+      setChanges(newChanges);
+    } catch (err) {}
   };
 
-  const formatTime = (d: Date) =>
-    d.toLocaleString("zh-CN", {
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit"
-    });
+  useEffect(() => {
+    const lastVisit = localStorage.getItem("last_visit_global");
+    if (!lastVisit) {
+      localStorage.setItem("last_visit_global", new Date().toUTCString());
+      setFirstVisit(true);
+      fetchAndDetectChanges();
+      return;
+    }
 
-  // Cookie 授权配置
+    setFirstVisit(false);
+    fetchAndDetectChanges();
+    localStorage.setItem("last_visit_global", new Date().toUTCString());
+  }, []);
+
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    const isUpdated = changes.some((item) => item.link === currentPath);
+    if (!isUpdated) return;
+
+    const article = document.querySelector(".prose") || document.querySelector(".article-content");
+    if (!article) return;
+
+    const textLength = (article.textContent || "").length;
+    if (textLength > 8000) {
+      const tip = document.createElement("div");
+      tip.style.cssText =
+        "margin: 0 0 16px 0; padding: 8px 12px; border-left: 3px solid #22c55e; background: var(--accent); border-radius: 6px; font-size: 14px; color: var(--muted-foreground);";
+      tip.textContent = "✏️ 本文已更新";
+      article.parentNode?.insertBefore(tip, article);
+      return;
+    }
+
+    (article as HTMLElement).style.textDecoration = "underline";
+    (article as HTMLElement).style.textDecorationColor = "#22c55e";
+    (article as HTMLElement).style.textDecorationThickness = "1px";
+    (article as HTMLElement).style.textUnderlineOffset = "3px";
+  }, [changes]);
+
   const cookieConsentConfig = {
     notice_banner_type: "simple",
     consent_type: "express",
@@ -240,51 +289,57 @@ document.addEventListener('DOMContentLoaded', function () {
 
         <ThemeProvider>{children}</ThemeProvider>
 
-        {/* ==============================================
-         🔥 新文章提示条（显示在页面底部，不影响布局）
-        =============================================== */}
-        {showNewArticles && lastVisit && (
+        {!firstVisit && showPopup && changes.length > 0 && (
           <div
             style={{
               position: "fixed",
               bottom: "80px",
               right: "20px",
+              width: "320px",
               background: "var(--background)",
               border: "1px solid var(--border)",
               borderRadius: "14px",
               padding: "14px 16px",
-              fontSize: "13px",
               boxShadow: "0 10px 30px -8px rgba(0,0,0,0.08)",
               zIndex: 999,
-              width: "280px",
               backdropFilter: "blur(8px)",
-              transition: "all 0.2s ease",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: "var(--primary)",
-                  fontSize: "14px",
-                }}
-              >
-                自 {formatTime(lastVisit)} 后新增文章
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "var(--primary)" }}>
+                最新更新
               </div>
               <button
-                onClick={() => setShowNewArticles(false)}
+                onClick={clearAllUpdates}
                 style={{
                   background: "none",
                   border: "none",
                   color: "var(--muted-foreground)",
-                  fontSize: "16px",
                   cursor: "pointer",
-                  padding: "0 4px"
+                }}
+              >
+                🗑️
+              </button>
+              <button
+                onClick={() => setShowPopup(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted-foreground)",
+                  cursor: "pointer",
                 }}
               >
                 ×
               </button>
             </div>
+
             <div
               style={{
                 display: "flex",
@@ -292,42 +347,41 @@ document.addEventListener('DOMContentLoaded', function () {
                 gap: "8px",
                 maxHeight: "160px",
                 overflowY: "auto",
-                paddingRight: "4px"
               }}
             >
-              {newArticles.length > 0 ? (
-                newArticles.map((item, i) => (
-                  <a
-                    key={i}
-                    href={item.link}
-                    target="_blank"
-                    rel="noreferrer"
+              {changes.map((item, i) => (
+                <a
+                  key={i}
+                  href={item.link}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: "var(--foreground)",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  <span
                     style={{
-                      color: "var(--foreground)",
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      padding: "4px 2px",
-                      transition: "color 0.2s",
+                      fontSize: "11px",
+                      padding: "2px 6px",
+                      border: "1px solid #f97316",
+                      color: "#f97316",
+                      borderRadius: "4px",
                     }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.color = "var(--primary)")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.color = "var(--foreground)")
-                    }
                   >
-                    • {item.title}
-                  </a>
-                ))
-              ) : (
-                <div style={{ color: "var(--muted-foreground)" }}>暂无最新文章</div>
-              )}
+                    {item.isNew ? "新增" : "更新"}
+                  </span>
+                  {item.title}
+                </a>
+              ))}
             </div>
           </div>
         )}
-        
+
         <a
           href="#"
           id="open_preferences_center"
